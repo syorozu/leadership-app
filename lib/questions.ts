@@ -6,10 +6,14 @@ export type LeadershipStyle =
   | 'pacesetting'
   | 'commanding';
 
+export type StyleKey = LeadershipStyle | 'directive';
+
 export interface Question {
   id: number;
   text: string;
   style: LeadershipStyle;
+  category?: LeadershipStyle | 'directive';
+  isReverse?: boolean;
 }
 
 export interface StyleMeta {
@@ -65,7 +69,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: 3,
-    text: 'メンバーに対して「なぜこの仕事が必要なのか」という目的や背景の腹落ちを徹底的に求める。',
+    text: '業務の着手が遅れるリスクがあっても、メンバーが仕事の意義や大義に完全に腹落ちするまで作業開始を待つ。',
     style: 'visionary',
   },
   {
@@ -97,12 +101,12 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: 9,
-    text: '課題に直面したメンバーに対し、すぐに正解を教えるのではなく、本人が自力で解決策を導き出すまで問いかけを重ねる。',
+    text: '納期や締め切りが迫っている逼迫した局面であっても、手取り足取り指示を出さず、本人が気づくまで待つ。',
     style: 'coaching',
   },
   {
     id: 10,
-    text: 'メンバーの失敗に対して単に叱責や是正を行うのではなく、「今回の経験から何が学べるか」を深く振り返らせる。',
+    text: 'メンバーがミスをした際、即座の損害リカバリーや責任追及よりも、本人の学びや内省を深める対話を最優先する。',
     style: 'coaching',
   },
   {
@@ -134,7 +138,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: 16,
-    text: 'チーム内の規律を厳しく保つことよりも、メンバー同士が助け合い、孤立する人が出ない雰囲気を重視する。',
+    text: 'メンバーの士気やチームの和を守るためであれば、低パフォーマンスな行動やルーズな規律違反も一定程度大目に見る。',
     style: 'affiliative',
   },
   {
@@ -171,12 +175,12 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: 23,
-    text: '業務改善や課題解決にあたり、自らのノウハウを押し付けるのではなく、現場の総意や知見を集約して方針を立てる。',
+    text: '自らに明確な成功手順や持論がある場合でも、自分のやり方を指示せず、現場が合意した方針を優先して採用する。',
     style: 'democratic',
   },
   {
     id: 24,
-    text: '会議において自らが長く話すことを避け、発言の少ないメンバーからも意見を引き出すファシリテーションに徹する。',
+    text: '会議の終了時間が迫っている場合でも、自らの意見で強引にまとめず、全員が発言し終えるまで場を委ねる。',
     style: 'democratic',
   },
 
