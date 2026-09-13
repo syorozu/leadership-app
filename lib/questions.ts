@@ -1,59 +1,246 @@
-export type StyleKey = 'directive' | 'visionary' | 'affiliative' | 'democratic' | 'pacesetting' | 'coaching';
+export type LeadershipStyle =
+  | 'visionary'
+  | 'coaching'
+  | 'affiliative'
+  | 'democratic'
+  | 'pacesetting'
+  | 'commanding';
 
 export interface Question {
   id: number;
-  code: string;
-  category: StyleKey;
-  isReverse: boolean;
   text: string;
+  style: LeadershipStyle;
 }
 
+export interface StyleMeta {
+  key: LeadershipStyle;
+  label: string;
+  description: string;
+}
+
+export const LEADERSHIP_STYLES: Record<LeadershipStyle, StyleMeta> = {
+  visionary: {
+    key: 'visionary',
+    label: 'ビジョン型',
+    description: '共通の夢や大義を示し、人々を同じ目標へ向けて動かすスタイル。',
+  },
+  coaching: {
+    key: 'coaching',
+    label: '育成型',
+    description: '個人の強みや目標を組織の目標と結びつけ、中長期的な成長を促すスタイル。',
+  },
+  affiliative: {
+    key: 'affiliative',
+    label: '関係重視型',
+    description: '良好な人間関係と心理的安心感を最優先し、調和を築くスタイル。',
+  },
+  democratic: {
+    key: 'democratic',
+    label: '民主型',
+    description: 'メンバーの参加や合意形成を通じて納得感とコミットメントを引き出すスタイル。',
+  },
+  pacesetting: {
+    key: 'pacesetting',
+    label: '率先型',
+    description: 'リーダー自ら極めて高い成果基準を実演し、同じ水準のスピードと質を求めるスタイル。',
+  },
+  commanding: {
+    key: 'commanding',
+    label: '指示命令型',
+    description: '有事や危機的局面において、迅速なトップダウンで規律と指示の徹底を図るスタイル。',
+  },
+};
+
 export const QUESTIONS: Question[] = [
-  // ① 指示命令型
-  { id: 1, code: 'Q1-1', category: 'directive', isReverse: false, text: '業務の進め方や手順について、部下に細かく具体的な指示命令を与えている。' },
-  { id: 2, code: 'Q1-2', category: 'directive', isReverse: false, text: '定めた方針やルールを順守させるため、部下に対して厳しく是正を求めている。' },
-  { id: 3, code: 'Q1-3', category: 'directive', isReverse: false, text: '緊急時や危機的な局面では、議論を挟まずトップダウンで即座に指示を出してチームを動かす。' },
-  { id: 4, code: 'Q1-4', category: 'directive', isReverse: true,  text: '差し迫ったトラブルや緊急事態であっても、命令口調で部下の行動を強制することは避けている。' },
-  { id: 5, code: 'Q1-5', category: 'directive', isReverse: true,  text: '部下が指示やルールを守らない場合でも、強い態度で指導・注意することに抵抗がある。' },
-  { id: 6, code: 'Q1-6', category: 'directive', isReverse: true,  text: '指示通りに行動させることよりも、どのような場面でも部下の自主的な判断や裁量を最優先したい。' },
+  // 1. ビジョン型（Visionary）
+  {
+    id: 1,
+    text: '個別の業務手順を細かく指示するよりも、事業や組織が目指す「大義や方向性」の共有に多くの時間を割いている。',
+    style: 'visionary',
+  },
+  {
+    id: 2,
+    text: '目の前の実務的な課題よりも、中長期的なビジョンや目指すべき理想像をチームに語りかけることが多い。',
+    style: 'visionary',
+  },
+  {
+    id: 3,
+    text: 'メンバーに対して「なぜこの仕事が必要なのか」という目的や背景の腹落ちを徹底的に求める。',
+    style: 'visionary',
+  },
+  {
+    id: 4,
+    text: '日常業務の細部はメンバーに委ね、自分は組織の目指すゴールや方針がブレないよう管理することに注力している。',
+    style: 'visionary',
+  },
+  {
+    id: 5,
+    text: '新しい方針を打ち出す際は、反発や疑問が生じても、将来の必要性を粘り強く説得して巻き込む。',
+    style: 'visionary',
+  },
+  {
+    id: 6,
+    text: 'メンバーの成果を評価する際、個々の作業スピードよりも「組織全体の方向性に合致しているか」を重視する。',
+    style: 'visionary',
+  },
 
-  // ② ビジョン型
-  { id: 7, code: 'Q2-1', category: 'visionary', isReverse: false, text: '組織の理念や中長期的な将来像（ビジョン）を、日頃から繰り返し言葉にして共有している。' },
-  { id: 8, code: 'Q2-2', category: 'visionary', isReverse: false, text: '部下に対して、目の前の業務だけでなく「なぜその仕事が重要なのか」という大局的な意義を伝えている。' },
-  { id: 9, code: 'Q2-3', category: 'visionary', isReverse: false, text: '目指すべき明確な方向性を示した後は、具体的な業務の進め方は部下の裁量に委ねている。' },
-  { id: 10, code: 'Q2-4', category: 'visionary', isReverse: true,  text: 'チームの将来像や理念を語るより、目の前にある日々のタスクを滞りなく処理することばかりに意識が向いている。' },
-  { id: 11, code: 'Q2-5', category: 'visionary', isReverse: true,  text: '仕事の目的や背景を説明するよりも、手っ取り早く作業手順だけを伝えることが多い。' },
-  { id: 12, code: 'Q2-6', category: 'visionary', isReverse: true,  text: 'チームが将来どこに向かうべきかについて、リーダーである自分自身も明確な方向性を描き切れていない。' },
+  // 2. 育成型（Coaching）
+  {
+    id: 7,
+    text: '目先の業務効率が一時的に落ちるとしても、メンバー本人の学習や成長機会を優先して仕事を任せる。',
+    style: 'coaching',
+  },
+  {
+    id: 8,
+    text: 'メンバーの目先の業務進捗だけでなく、本人のキャリア目標や長期的な強み・弱みについて定期的に話し合っている。',
+    style: 'coaching',
+  },
+  {
+    id: 9,
+    text: '課題に直面したメンバーに対し、すぐに正解を教えるのではなく、本人が自力で解決策を導き出すまで問いかけを重ねる。',
+    style: 'coaching',
+  },
+  {
+    id: 10,
+    text: 'メンバーの失敗に対して単に叱責や是正を行うのではなく、「今回の経験から何が学べるか」を深く振り返らせる。',
+    style: 'coaching',
+  },
+  {
+    id: 11,
+    text: '短期的な業績達成と同じくらい、メンバー個々の能力開発計画や挑戦機会の創出に時間を割いている。',
+    style: 'coaching',
+  },
+  {
+    id: 12,
+    text: '業務指示を出す際、単なる手順の伝達にとどまらず、その業務が本人の能力伸長にどう繋がるかを意識して伝えている。',
+    style: 'coaching',
+  },
 
-  // ③ 関係重視型
-  { id: 13, code: 'Q3-1', category: 'affiliative', isReverse: false, text: '業務の成果や効率と同じくらい、メンバー同士の信頼関係やチーム内の良好な雰囲気を大切にしている。' },
-  { id: 14, code: 'Q3-2', category: 'affiliative', isReverse: false, text: '部下の感情面の変化やモチベーション、個人的な悩みにも日頃から気を配り、共感的に寄り添っている。' },
-  { id: 15, code: 'Q3-3', category: 'affiliative', isReverse: false, text: 'チーム全体の結束力や仲間意識を高めるために、日頃から積極的な対話やねぎらいを行っている。' },
-  { id: 16, code: 'Q3-4', category: 'affiliative', isReverse: true,  text: '職場はあくまで仕事をする場であり、メンバー同士の感情的な繋がりや親密な関係づくりは不要だと考えている。' },
-  { id: 17, code: 'Q3-5', category: 'affiliative', isReverse: true,  text: 'チーム内に人間関係の摩擦があっても、業務の納期や目標数値さえ達成されていれば干渉しない。' },
-  { id: 18, code: 'Q3-6', category: 'affiliative', isReverse: true,  text: '部下の私的な悩みや感情面に踏み込むことは避け、事務的な業務連絡だけに留めたい。' },
+  // 3. 関係重視型（Affiliative）
+  {
+    id: 13,
+    text: '業務の厳格な納期や成果水準よりも、チーム内の良好な人間関係や心理的安全性の維持を優先することがある。',
+    style: 'affiliative',
+  },
+  {
+    id: 14,
+    text: '業務上の衝突や対立が生じた際、合理的な正論で白黒つけることよりも、双方の感情的なわだかまりを解消することを最優先する。',
+    style: 'affiliative',
+  },
+  {
+    id: 15,
+    text: 'メンバーの業務パフォーマンスだけでなく、私生活や家庭環境、心身のストレス状態に強い関心を払っている。',
+    style: 'affiliative',
+  },
+  {
+    id: 16,
+    text: 'チーム内の規律を厳しく保つことよりも、メンバー同士が助け合い、孤立する人が出ない雰囲気を重視する。',
+    style: 'affiliative',
+  },
+  {
+    id: 17,
+    text: '業務上の課題やフィードバックを伝える際、相手を動揺させないよう、肯定的な言葉や配慮を最優先して伝える。',
+    style: 'affiliative',
+  },
+  {
+    id: 18,
+    text: 'チームの士気（モラール）を高めるため、公式な業務時間外の懇親やインフォーマルな雑談の機会を積極的に設けている。',
+    style: 'affiliative',
+  },
 
-  // ④ 民主型
-  { id: 19, code: 'Q4-1', category: 'democratic', isReverse: false, text: '重要な方針や計画を決定する際、チームメンバー全員の意見や提案を積極的に求めている。' },
-  { id: 20, code: 'Q4-2', category: 'democratic', isReverse: false, text: '自分の考えと異なる意見であっても、議論を尽くして納得感のある合意形成を図ろうとする。' },
-  { id: 21, code: 'Q4-3', category: 'democratic', isReverse: false, text: '意思決定のプロセスを共有し、チーム全体で決めたという当事者意識（オーナーシップ）を持たせている。' },
-  { id: 22, code: 'Q4-4', category: 'democratic', isReverse: true,  text: '重要な決定はリーダーである自分一人で下し、メンバーには決まった結論のみを伝えている。' },
-  { id: 23, code: 'Q4-5', category: 'democratic', isReverse: true,  text: 'メンバーに意見を聞くと議論が長引いて進まないため、相談せずに自分で進めることが多い。' },
-  { id: 24, code: 'Q4-6', category: 'democratic', isReverse: true,  text: '合意形成に時間をかけるくらいなら、リーダーの直感やトップダウンで素早く決めるほうが良いと思う。' },
+  // 4. 民主型（Democratic）
+  {
+    id: 19,
+    text: 'スピーディーに意思決定を下すことよりも、関係者全員の意見を聞き、合意を形成するプロセスに時間をかける。',
+    style: 'democratic',
+  },
+  {
+    id: 20,
+    text: '方針を決定する際、トップダウンで方向性を示すよりも、現場メンバーからの発案やブレインストーミングを重視する。',
+    style: 'democratic',
+  },
+  {
+    id: 21,
+    text: '最終決定権が自分にある場合でも、メンバー間で意見の一致や納得感が得られるまで議論を重ねることが多い。',
+    style: 'democratic',
+  },
+  {
+    id: 22,
+    text: 'チームの目標や評価基準を定める際、リーダー単独ではなく、メンバー全員を議論に巻き込んで決定する。',
+    style: 'democratic',
+  },
+  {
+    id: 23,
+    text: '業務改善や課題解決にあたり、自らのノウハウを押し付けるのではなく、現場の総意や知見を集約して方針を立てる。',
+    style: 'democratic',
+  },
+  {
+    id: 24,
+    text: '会議において自らが長く話すことを避け、発言の少ないメンバーからも意見を引き出すファシリテーションに徹する。',
+    style: 'democratic',
+  },
 
-  // ⑤ 率先型
-  { id: 25, code: 'Q5-1', category: 'pacesetting', isReverse: false, text: 'リーダー自らがプレイヤーとして高い成果を出し、「自分の背中を見せる」ことでチームを引っ張っている。' },
-  { id: 26, code: 'Q5-2', category: 'pacesetting', isReverse: false, text: '成果物の品質やスピードに極めて高い基準を設け、自分にも部下にも妥協を許さない。' },
-  { id: 27, code: 'Q5-3', category: 'pacesetting', isReverse: false, text: '基準に満たない業務がある場合、細かく指導するより自ら手本を示して巻き取って仕上げることが多い。' },
-  { id: 28, code: 'Q5-4', category: 'pacesetting', isReverse: true,  text: '現場の実務で高い成果を出すことよりも、実務は部下に任せて自分は調整・管理役に徹している。' },
-  { id: 29, code: 'Q5-5', category: 'pacesetting', isReverse: true,  text: 'チームのアウトプットの品質やスピードに対して、そこまでシビアな完璧さを求めていない。' },
-  { id: 30, code: 'Q5-6', category: 'pacesetting', isReverse: true,  text: '仕事が遅れている部下がいても、自分が手本を見せたり手を貸したりせず、本人のペースに任せている。' },
+  // 5. 率先型（Pacesetting）
+  {
+    id: 25,
+    text: 'チーム全体の平均水準に合わせるのではなく、自分自身が極めて高い基準の成果をアウトプットで示し、牽引する。',
+    style: 'pacesetting',
+  },
+  {
+    id: 26,
+    text: '成果水準を満たせないメンバーに対し、成長を待つよりも、自らが現場に入って手本を見せるか代行することがある。',
+    style: 'pacesetting',
+  },
+  {
+    id: 27,
+    text: 'メンバーから提出された成果物の品質に妥協せず、基準に達するまで何度も厳しく手直しを求める。',
+    style: 'pacesetting',
+  },
+  {
+    id: 28,
+    text: 'プロジェクトが遅延・停滞した局面では、人に指示を出す時間があれば自分が直接手を動かしてリカバリーを図る。',
+    style: 'pacesetting',
+  },
+  {
+    id: 29,
+    text: '自らと同等の高いコミットメントやスピード感、品質基準をチームメンバー全員にも当然のこととして求める。',
+    style: 'pacesetting',
+  },
+  {
+    id: 30,
+    text: '業務のプロセスや努力の量よりも、期日内に高い品質の「結果」が出ているかどうかを極めて厳密に評価する。',
+    style: 'pacesetting',
+  },
 
-  // ⑥ 育成型
-  { id: 31, code: 'Q6-1', category: 'coaching', isReverse: false, text: '1on1などの定期的な対話を通じて、部下の長所・短所を把握し、中長期的なキャリア支援を行っている。' },
-  { id: 32, code: 'Q6-2', category: 'coaching', isReverse: false, text: '答えを直接教えるのではなく、問いかけを通じて部下自身の気づきや自律的な思考を引き出している。' },
-  { id: 33, code: 'Q6-3', category: 'coaching', isReverse: false, text: '目先の失敗を恐れず、部下の成長や学びに繋がる挑戦的な仕事を積極的に任せている。' },
-  { id: 34, code: 'Q6-4', category: 'coaching', isReverse: true,  text: '部下個人の成長やキャリアよりも、今期の組織目標をこなさせることだけに集中している。' },
-  { id: 35, code: 'Q6-5', category: 'coaching', isReverse: true,  text: '部下の相談や育成に対話の時間を割くのは非効率だと感じ、すぐに自分の答えを押し付けてしまう。' },
-  { id: 36, code: 'Q6-6', category: 'coaching', isReverse: true,  text: '部下をじっくり育てるより、最初から実務ができる人に任せるか自分で処理したほうが効率的だと思う。' }
+  // 6. 指示命令型（Commanding）
+  {
+    id: 31,
+    text: '緊急時やトラブル発生時は、メンバーとの議論や合意形成を省き、トップダウンで明確かつ即座の指示徹底を行う。',
+    style: 'commanding',
+  },
+  {
+    id: 32,
+    text: 'チームの規律や業務手順に違反があった場合、理由の如何を問わず、例外を認めずに厳格に対処する。',
+    style: 'commanding',
+  },
+  {
+    id: 33,
+    text: '方向性が定まらない膠着状態では、メンバーの意見集約を待たず、独断で即決し実行を強制することがある。',
+    style: 'commanding',
+  },
+  {
+    id: 34,
+    text: 'メンバーからの業務進捗報告に対して細部まで確認を入れ、指示通りに動いているかを厳密にコントロールする。',
+    style: 'commanding',
+  },
+  {
+    id: 35,
+    text: '組織の危機的局面においては、メンバーへの心理的配慮よりも、課題の解決やノルマの達成を絶対優先する。',
+    style: 'commanding',
+  },
+  {
+    id: 36,
+    text: '指示を出した後は、メンバー独自の解釈やアレンジを許さず、指示通りの手順で完遂させることを求める。',
+    style: 'commanding',
+  },
 ];
