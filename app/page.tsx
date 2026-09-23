@@ -49,7 +49,7 @@ export default function DiagnosisPage() {
     }
   };
 
-const requestFeedback = async (calculatedScores: DiagnosisScore[], calculatedReliability: ReliabilityResult) => {
+  const requestFeedback = async (calculatedScores: DiagnosisScore[], calculatedReliability: ReliabilityResult) => {
     setLoadingFeedback(true);
     try {
       const res = await fetch('/api/feedback', {
@@ -76,7 +76,7 @@ const requestFeedback = async (calculatedScores: DiagnosisScore[], calculatedRel
   const backupStyles = scores.filter(s => s.level === 'backup').map(s => s.name);
 
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-slate-50 text-slate-900 p-4 font-sans">
+    <div className="max-w-md mx-auto min-h-screen bg-slate-50 text-slate-900 p-4 font-sans print:max-w-none print:w-full print:bg-white print:p-6">
       {!isCompleted ? (
         <div className="flex flex-col min-h-[90vh] justify-between">
           <div>
@@ -130,15 +130,15 @@ const requestFeedback = async (calculatedScores: DiagnosisScore[], calculatedRel
           </div>
         </div>
       ) : (
-        <div className="space-y-6 pb-12 pt-2">
+        <div className="space-y-6 pb-12 pt-2 print:space-y-4 print:pb-0">
           <div className="border-b border-slate-200 pb-3">
-            <h1 className="text-lg font-bold text-slate-900">リーダーシップ・スタイル診断結果</h1>
+            <h1 className="text-lg font-bold text-slate-900 print:text-xl">リーダーシップ・スタイル診断結果</h1>
             <p className="text-xs text-slate-500">コーン・フェリー基準プロファイル分析</p>
           </div>
 
           {/* 回答信頼度（信憑性）カード */}
           {reliability && (
-            <div className={`p-4 rounded-lg border shadow-sm ${
+            <div className={`p-4 rounded-lg border shadow-sm print:shadow-none ${
               reliability.isInvalid ? 'bg-red-50 border-red-200' :
               reliability.level === '高' ? 'bg-emerald-50 border-emerald-200' :
               reliability.level === '中' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'
@@ -170,7 +170,7 @@ const requestFeedback = async (calculatedScores: DiagnosisScore[], calculatedRel
           ) : (
             <>
               {/* スタイルサマリー */}
-              <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm space-y-2">
+              <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm space-y-2 print:shadow-none">
                 <div className="flex items-center text-sm">
                   <span className="w-28 font-bold text-slate-600">メインスタイル:</span>
                   <span className="font-bold text-blue-600">
@@ -186,7 +186,7 @@ const requestFeedback = async (calculatedScores: DiagnosisScore[], calculatedRel
               </div>
 
               {/* パーセンタイル棒グラフ */}
-              <div>
+              <div className="print:break-inside-avoid">
                 <div className="flex justify-between items-center mb-1">
                   <h2 className="text-xs font-bold text-slate-700">プロファイルグラフ</h2>
                   <span className="text-[10px] text-slate-600">70%以上: メイン / 50%〜: バックアップ</span>
@@ -194,8 +194,8 @@ const requestFeedback = async (calculatedScores: DiagnosisScore[], calculatedRel
                 <LeadershipChart scores={scores} />
               </div>
 
-              {/* Gemini講評 */}
-              <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm space-y-4">
+              {/* 組織開発コンサルタント講評 */}
+              <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm space-y-4 print:shadow-none print:break-inside-avoid">
                 <h2 className="text-sm font-bold text-slate-800 border-l-4 border-blue-600 pl-2">
                   組織開発コンサルタント講評
                 </h2>
@@ -212,12 +212,25 @@ const requestFeedback = async (calculatedScores: DiagnosisScore[], calculatedRel
             </>
           )}
 
-          <button
-            onClick={() => window.location.reload()}
-            className="w-full py-3 bg-slate-800 text-white rounded-lg text-xs font-bold shadow-sm"
-          >
-            もう一度診断を受ける
-          </button>
+          {/* 操作ボタン群（印刷・PDF出力時は非表示） */}
+          <div className="flex flex-col gap-2 pt-2 print:hidden">
+            <button
+              onClick={() => window.print()}
+              disabled={loadingFeedback}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs font-bold shadow-sm transition-colors flex items-center justify-center gap-2 disabled:bg-blue-300"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              診断結果をPDFとして保存 / 印刷
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
+            >
+              もう一度診断を受ける
+            </button>
+          </div>
         </div>
       )}
     </div>
