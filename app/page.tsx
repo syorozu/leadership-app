@@ -14,7 +14,6 @@ export default function DiagnosisPage() {
   const [reliability, setReliability] = useState<ReliabilityResult | null>(null);
   const [feedback, setFeedback] = useState<string>('');
   const [loadingFeedback, setLoadingFeedback] = useState(false);
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   useEffect(() => {
     const list = [...QUESTIONS];
@@ -68,64 +67,6 @@ export default function DiagnosisPage() {
       setFeedback(`【通信エラー】: ${e.message}`);
     } finally {
       setLoadingFeedback(false);
-    }
-  };
-
-  // PC・スマホ（iOS/Android）両対応のPDF保存・共有処理
-  const handleDownloadPdf = async () => {
-    const element = document.getElementById('pdf-area');
-    if (!element) return;
-
-    setIsExportingPdf(true);
-    try {
-      if (!(window as any).html2pdf) {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-          script.onload = resolve;
-          script.onerror = reject;
-          document.head.appendChild(script);
-        });
-      }
-
-      const opt = {
-        margin: [6, 6, 6, 6],
-        filename: 'リーダーシップスタイル診断結果.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-
-      const worker = (window as any).html2pdf().set(opt).from(element);
-      const pdfBlob: Blob = await worker.outputPdf('blob');
-      const fileName = 'リーダーシップスタイル診断結果.pdf';
-      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
-      // スマホでWeb Share APIが利用可能な場合はOS標準の共有シートを起動
-      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        await navigator.share({
-          files: [pdfFile],
-          title: 'リーダーシップスタイル診断結果',
-          text: '診断結果のPDFファイルです。'
-        });
-      } else {
-        // PCまたは非対応ブラウザは直接ダウンロード
-        const url = URL.createObjectURL(pdfBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      }
-    } catch (error: any) {
-      if (error?.name !== 'AbortError') {
-        console.error('PDF生成エラー:', error);
-        window.print();
-      }
-    } finally {
-      setIsExportingPdf(false);
     }
   };
 
@@ -188,8 +129,8 @@ export default function DiagnosisPage() {
         </div>
       ) : (
         <div className="space-y-5 pb-12 pt-2">
-          {/* PDF出力対象エリア */}
-          <div id="pdf-area" className="space-y-4 bg-white p-4 rounded-xl border border-slate-200">
+          {/* 結果コンテナ */}
+          <div className="space-y-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <div className="border-b border-slate-200 pb-3">
               <h1 className="text-lg font-bold text-slate-900">リーダーシップ・スタイル診断結果</h1>
               <p className="text-xs text-slate-500">コーン・フェリー基準プロファイル分析</p>
@@ -263,21 +204,11 @@ export default function DiagnosisPage() {
             )}
           </div>
 
-          {/* 操作ボタン群 */}
-          <div className="flex flex-col gap-2 pt-2">
-            <button
-              onClick={handleDownloadPdf}
-              disabled={loadingFeedback || isExportingPdf}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs font-bold shadow-md transition-colors flex items-center justify-center gap-2 disabled:bg-blue-300"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              {isExportingPdf ? 'PDFファイルを生成中...' : '診断結果をPDFとして保存 / 共有'}
-            </button>
+          {/* 操作ボタン */}
+          <div className="pt-2">
             <button
               onClick={() => window.location.reload()}
-              className="w-full py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
+              className="w-full py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
             >
               もう一度診断を受ける
             </button>
