@@ -14,6 +14,7 @@ export default function DiagnosisPage() {
   const [reliability, setReliability] = useState<ReliabilityResult | null>(null);
   const [feedback, setFeedback] = useState<string>('');
   const [loadingFeedback, setLoadingFeedback] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     const list = [...QUESTIONS];
@@ -47,35 +48,57 @@ export default function DiagnosisPage() {
     }
   };
 
+  // 503混雑時に自動で最大3回リトライする通信関数
   const requestFeedback = async (calculatedScores: DiagnosisScore[], calculatedReliability: ReliabilityResult) => {
     setLoadingFeedback(true);
-    try {
-      const res = await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scores: calculatedScores, reliability: calculatedReliability })
-      });
+    setHasError(false);
 
-      // レスポンスがJSONであるか安全に判定
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        const rawText = await res.text();
-        setFeedback(`【サーバー通信エラー (${res.status})】: ${rawText.slice(0, 150)}`);
-        return;
-      }
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const res = await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scores: calculatedScores, reliability: calculatedReliability })
+        });
 
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback(`【APIエラー (${res.status})】: ${data.error || '通信エラー'}`);
-      } else {
-        setFeedback(data.feedback || '講評が取得できませんでした。');
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          if (attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, 2000));
+            continue;
+          }
+          setHasError(true);
+          setFeedback('AIサーバーの応答がタイムアウトしました。下のボタンから再取得してください。');
+          break;
+        }
+
+        const data = await res.json();
+
+        if (res.ok && data.feedback) {
+          setFeedback(data.feedback);
+          setHasError(false);
+          break;
+        } else {
+          // 503等の場合は2秒待って自動リトライ
+          if (attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, 2000));
+            continue;
+          }
+          setHasError(true);
+          setFeedback(data.error || '講評の取得に失敗しました。');
+        }
+      } catch (e: any) {
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
+        setHasError(true);
+        setFeedback(`通信エラーが発生しました: ${e.message}`);
       }
-    } catch (e: any) {
-      console.error(e);
-      setFeedback(`【通信エラー】: ${e.message}`);
-    } finally {
-      setLoadingFeedback(false);
     }
+
+    setLoadingFeedback(false);
   };
 
   const mainStyles = scores.filter(s => s.level === 'main').map(s => s.name);
@@ -177,8 +200,18 @@ export default function DiagnosisPage() {
                       回答傾向を精査し、講評を生成中...
                     </div>
                   ) : (
-                    <div className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
-                      {feedback}
+                    <div className="space-y-3">
+                      <div className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
+                        {feedback}
+                      </div>
+                      {hasError && reliability && (
+                        <button
+                          onClick={() => requestFeedback(scores, reliability)}
+                          className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-bold shadow-xs transition-colors"
+                        >
+                          講評を再取得する（回答データは保持されています）
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
