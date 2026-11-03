@@ -55,8 +55,16 @@ export default function DiagnosisPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scores: calculatedScores, reliability: calculatedReliability })
       });
+
+      // レスポンスがJSONであるか安全に判定
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const rawText = await res.text();
+        setFeedback(`【サーバー通信エラー (${res.status})】: ${rawText.slice(0, 150)}`);
+        return;
+      }
+
       const data = await res.json();
-      
       if (!res.ok) {
         setFeedback(`【APIエラー (${res.status})】: ${data.error || '通信エラー'}`);
       } else {
@@ -129,7 +137,6 @@ export default function DiagnosisPage() {
         </div>
       ) : (
         <div className="space-y-5 pb-12 pt-2">
-          {/* 結果コンテナ */}
           <div className="space-y-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <div className="border-b border-slate-200 pb-3">
               <h1 className="text-lg font-bold text-slate-900">リーダーシップ・スタイル診断結果</h1>
@@ -142,7 +149,6 @@ export default function DiagnosisPage() {
               </div>
             ) : (
               <>
-                {/* スタイルサマリー */}
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">
                   <div className="flex items-center text-sm">
                     <span className="w-28 font-bold text-slate-600">メインスタイル:</span>
@@ -158,12 +164,10 @@ export default function DiagnosisPage() {
                   </div>
                 </div>
 
-                {/* プロファイル棒グラフ */}
                 <div>
                   <LeadershipChart scores={scores} />
                 </div>
 
-                {/* 組織開発コンサルタント講評 */}
                 <div className="bg-slate-50 p-5 rounded-lg border border-slate-200 space-y-3">
                   <h2 className="text-sm font-bold text-slate-800 border-l-4 border-blue-600 pl-2">
                     組織開発コンサルタント講評
@@ -179,7 +183,6 @@ export default function DiagnosisPage() {
                   )}
                 </div>
 
-                {/* 回答信頼度（最下部に配置） */}
                 {reliability && (
                   <div className={`p-3 rounded-lg border text-xs ${
                     reliability.level === '高' ? 'bg-slate-50 border-slate-200 text-slate-600' :
@@ -203,7 +206,6 @@ export default function DiagnosisPage() {
             )}
           </div>
 
-          {/* 操作ボタン */}
           <div className="pt-2">
             <button
               onClick={() => window.location.reload()}
