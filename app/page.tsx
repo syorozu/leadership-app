@@ -71,7 +71,7 @@ export default function DiagnosisPage() {
     }
   };
 
-  // CDN動的ロードによる確実なPDF直接ダウンロード
+  // PC・スマホ（iOS/Android）両対応のPDF保存・共有処理
   const handleDownloadPdf = async () => {
     const element = document.getElementById('pdf-area');
     if (!element) return;
@@ -89,17 +89,41 @@ export default function DiagnosisPage() {
       }
 
       const opt = {
-        margin: [8, 8, 8, 8],
+        margin: [6, 6, 6, 6],
         filename: 'リーダーシップスタイル診断結果.pdf',
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, logging: false },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      await (window as any).html2pdf().set(opt).from(element).save();
-    } catch (error) {
-      console.error('PDF生成エラー:', error);
-      window.print();
+      const worker = (window as any).html2pdf().set(opt).from(element);
+      const pdfBlob: Blob = await worker.outputPdf('blob');
+      const fileName = 'リーダーシップスタイル診断結果.pdf';
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      // スマホでWeb Share APIが利用可能な場合はOS標準の共有シートを起動
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        await navigator.share({
+          files: [pdfFile],
+          title: 'リーダーシップスタイル診断結果',
+          text: '診断結果のPDFファイルです。'
+        });
+      } else {
+        // PCまたは非対応ブラウザは直接ダウンロード
+        const url = URL.createObjectURL(pdfBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') {
+        console.error('PDF生成エラー:', error);
+        window.print();
+      }
     } finally {
       setIsExportingPdf(false);
     }
@@ -249,7 +273,7 @@ export default function DiagnosisPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              {isExportingPdf ? 'PDFファイルを生成中...' : '診断結果をPDFとしてダウンロード'}
+              {isExportingPdf ? 'PDFファイルを生成中...' : '診断結果をPDFとして保存 / 共有'}
             </button>
             <button
               onClick={() => window.location.reload()}

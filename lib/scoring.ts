@@ -48,9 +48,9 @@ export interface ReliabilityResult {
   penalties: string[];
 }
 
-// 信頼度スコアの計算（シビア判定アルゴリズム）
+// 信頼度スコアの計算（類似設問乖離＋反対設問矛盾の厳格判定）
 export function calculateReliability(answers: Record<number, number>, questions: Question[]): ReliabilityResult {
-  let score = 92;
+  let score = 95;
   const penalties: string[] = [];
   const vals = Object.values(answers);
   const total = questions.length || 36;
@@ -78,75 +78,92 @@ export function calculateReliability(answers: Record<number, number>, questions:
   maxRun = Math.max(maxRun, currentRun);
 
   if (runDeduct > 0) {
-    const penaltyVal = Math.min(24, runDeduct);
+    const penaltyVal = Math.min(20, runDeduct);
     score -= penaltyVal;
-    penalties.push(`同じ選択肢の連続選択（最大${maxRun}問連続 / 思考停止・省力回答の検知: -${penaltyVal}点）`);
+    penalties.push(`同じ選択肢の連続選択（最大${maxRun}問連続 / 思考停止傾向: -${penaltyVal}点）`);
   }
 
-  // 2. 甘口バイアス（4と5の割合が45%を超えたらシビアに減点）
+  // 2. 甘口バイアス（4と5の割合が45%を超えたら減点）
   const highCount = vals.filter(v => v >= 4).length;
   const highRatio = highCount / total;
   if (highRatio >= 0.45) {
-    const deduct = Math.min(30, Math.round((highRatio - 0.45) * 60));
+    const deduct = Math.min(25, Math.round((highRatio - 0.45) * 55));
     score -= deduct;
-    penalties.push(`肯定的回答（4・5）への過度な偏り（全回答の${Math.round(highRatio * 100)}% / 自己肯定バイアス: -${deduct}点）`);
+    penalties.push(`肯定的回答（4・5）への過度な偏り（全体の${Math.round(highRatio * 100)}% / 甘口自己評価: -${deduct}点）`);
   }
 
-  // 3. 回答の平板化（標準偏差が0.95未満で減点）
+  // 3. 回答の平板化（標準偏差が0.90未満で減点）
   const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
   const variance = vals.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / vals.length;
   const sd = Math.sqrt(variance);
 
-  if (sd < 0.95) {
-    const deduct = Math.min(20, Math.round((0.95 - sd) * 35));
+  if (sd < 0.90) {
+    const deduct = Math.min(18, Math.round((0.90 - sd) * 30));
     score -= deduct;
-    penalties.push(`自己内省のメリハリ不足（回答の起伏が乏しい平坦な傾向: -${deduct}点）`);
+    penalties.push(`自己内省のメリハリ不足（平坦な回答傾向: -${deduct}点）`);
   }
 
-  // 4. 同一選択肢の全体集中度
-  const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-  vals.forEach(v => { counts[v] = (counts[v] || 0) + 1; });
-  const maxFreq = Math.max(...Object.values(counts));
-  const maxRatio = maxFreq / total;
-  let isInvalid = false;
+  // 4. 同一スタイル内・類似設問の方向性不一致（大きなブレの検知）
+  STYLE_METAS.forEach(meta => {
+    const styleQs = questions.filter(q => {
+      const cat = (q as any).category || q.style;
+      return cat === meta.key || (meta.key === 'directive' && cat === 'commanding');
+    });
+    const sScores = styleQs.map(q => answers[q.id]).filter(v => v !== undefined);
+    if (sScores.length >= 4) {
+      const maxVal = Math.max(...sScores);
+      const minVal = Math.min(...sScores);
+      const range = maxVal - minVal;
+      if (range >= 4) {
+        score -= 8;
+        penalties.push(`【${meta.name}】類似設問間で回答が正反対に分裂（最大差: ${range}点 / -8点）`);
+      } else if (range === 3) {
+        score -= 4;
+        penalties.push(`【${meta.name}】類似設問間で回答に大きなバラつき（最大差: ${range}点 / -4点）`);
+      }
+    }
+  });
 
-  if (maxRatio >= 0.75) {
-    score -= 45;
-    isInvalid = true;
-    penalties.push(`全回答の${Math.round(maxRatio * 100)}%が同一選択肢（無効回答判定・再受検推奨）`);
-  } else if (maxRatio >= 0.40) {
-    const deduct = Math.min(20, Math.round((maxRatio - 0.40) * 45));
-    score -= deduct;
-    penalties.push(`特定の回答選択肢への集中傾向（${Math.round(maxRatio * 100)}% / -${deduct}点）`);
-  }
+  // 5. 背反する反対設問ペアの矛盾（トレードオフの同時肯定を検出）
+  const tradeOffPairs = [
+    {
+      q1: 4,  // Q04: プロセスには口出しせず方向性のみ管理（ビジョン）
+      q2: 36, // Q36: 自己流アレンジを認めず手順通りの完遂を徹底（指示命令）
+      label: '「裁量委任（Q04）」と「手順強制（Q36）」の同時肯定'
+    },
+    {
+      q1: 9,  // Q09: 納期が迫っても指示せず本人が気づくまで待つ（育成）
+      q2: 28, // Q28: 進捗が遅れたら自分が直接作業を引き受け挽回（率先）
+      label: '「見守り育成（Q09）」と「直接代行（Q28）」の同時肯定'
+    },
+    {
+      q1: 21, // Q21: 納得合意が得られるまでトップダウンで打ち切らない（民主）
+      q2: 33, // Q33: 膠着時は責任で即決しチームをその通り動かす（指示命令）
+      label: '「合意徹底（Q21）」と「即断独断（Q33）」の同時肯定'
+    },
+    {
+      q1: 16, // Q16: 融和のため成果未達やルール違反も大目に見る（関係）
+      q2: 30, // Q30: プロセスより期日内の成果物クオリティのみで評価（率先）
+      label: '「規律の容認（Q16）」と「結果至上主義（Q30）」の同時肯定'
+    }
+  ];
 
-  // 5. リーダーシップ行動のトレードオフ矛盾（相反スタイルの同時高評価）
-  const getAvg = (styleName: string) => {
-    const qs = questions.filter(q => (q.style === styleName) || (styleName === 'commanding' && (q as any).category === 'directive'));
-    const scores = qs.map(q => answers[q.id] || 3);
-    return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 3;
-  };
-
-  const commandingAvg = getAvg('commanding');
-  const democraticAvg = getAvg('democratic');
-  const pacesettingAvg = getAvg('pacesetting');
-  const coachingAvg = getAvg('coaching');
-
-  // 指示命令 vs 民主型
-  if (commandingAvg >= 3.6 && democraticAvg >= 3.6) {
-    score -= 12;
-    penalties.push(`「指示命令型」と「民主型」という背反する意思決定スタイルの同時過大評価（-12点）`);
-  }
-  // 率先型 vs 育成型
-  if (pacesettingAvg >= 3.6 && coachingAvg >= 3.6) {
-    score -= 10;
-    penalties.push(`「率先型」と「育成型」という時間投下のトレードオフに対する内省の矛盾（-10点）`);
-  }
+  tradeOffPairs.forEach(pair => {
+    const val1 = answers[pair.q1] || 3;
+    const val2 = answers[pair.q2] || 3;
+    if (val1 >= 4 && val2 >= 4) {
+      score -= 8;
+      penalties.push(`背反する行動の矛盾: ${pair.label}（-8点）`);
+    }
+  });
 
   const finalScore = Math.max(25, Math.min(95, Math.round(score)));
   let level: '高' | '中' | '低' = '高';
   if (finalScore < 70) level = '低';
   else if (finalScore < 85) level = '中';
+
+  const maxCount = Math.max(...[1, 2, 3, 4, 5].map(v => vals.filter(x => x === v).length));
+  const isInvalid = maxCount / total >= 0.75;
 
   return { score: finalScore, level, isInvalid, penalties };
 }

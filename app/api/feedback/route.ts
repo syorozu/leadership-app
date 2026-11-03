@@ -41,8 +41,8 @@ ${reliabilityText}
    - ◆ 未開発スタイルの克服課題
    - ◆ 明日から実践すべき3つの行動変容`;
 
-    // 1. 利用可能なモデルを動的取得（404を完全防止）
-    let targetModel = 'gemini-1.5-flash';
+    // 1. 最新の推奨モデル gemini-3.8-flash を起点に利用可能なモデルを取得
+    let targetModel = 'gemini-3.8-flash';
     try {
       const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
       if (listRes.ok) {
@@ -51,8 +51,7 @@ ${reliabilityText}
           .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
           .map((m: any) => m.name.replace('models/', ''));
 
-        // 優先度順にマッチング
-        const preferred = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-1.5-flash-8b', 'gemini-1.5-pro'];
+        const preferred = ['gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
         const matched = preferred.find(p => availableModels.includes(p));
         if (matched) {
           targetModel = matched;
