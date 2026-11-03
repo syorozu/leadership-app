@@ -48,27 +48,23 @@ export interface ReliabilityResult {
   penalties: string[];
 }
 
-// 信頼度スコアの計算（類似設問乖離＋反対設問矛盾の厳格判定）
+// 信頼度スコアの計算（ポジティブ＆自然な納得感のあるチューニング）
 export function calculateReliability(answers: Record<number, number>, questions: Question[]): ReliabilityResult {
-  let score = 95;
+  let score = 98; // 良好な内省を前提とした起点
   const penalties: string[] = [];
   const vals = Object.values(answers);
   const total = questions.length || 36;
 
-  if (vals.length === 0) return { score: 85, level: '高', isInvalid: false, penalties: [] };
+  if (vals.length === 0) return { score: 95, level: '高', isInvalid: false, penalties: [] };
 
-  // 1. 同一回答の連続（3問連続から即座に減点）
+  // 1. 同一回答の極端な連続（5問以上連続した場合のみ減点）
   let currentVal = vals[0];
   let currentRun = 1;
   let maxRun = 1;
-  let runDeduct = 0;
 
   for (let i = 1; i < vals.length; i++) {
     if (vals[i] === currentVal) {
       currentRun++;
-      if (currentRun >= 3) {
-        runDeduct += 4;
-      }
     } else {
       maxRun = Math.max(maxRun, currentRun);
       currentVal = vals[i];
@@ -77,33 +73,33 @@ export function calculateReliability(answers: Record<number, number>, questions:
   }
   maxRun = Math.max(maxRun, currentRun);
 
-  if (runDeduct > 0) {
-    const penaltyVal = Math.min(20, runDeduct);
-    score -= penaltyVal;
-    penalties.push(`同じ選択肢の連続選択（最大${maxRun}問連続 / 思考停止傾向: -${penaltyVal}点）`);
+  if (maxRun >= 6) {
+    const deduct = Math.min(15, (maxRun - 5) * 3);
+    score -= deduct;
+    penalties.push(`同一選択肢の連続傾向（最大${maxRun}問連続: -${deduct}点）`);
   }
 
-  // 2. 甘口バイアス（4と5の割合が45%を超えたら減点）
+  // 2. 肯定的回答（4・5）の割合（65%以上占める極端な場合のみ緩やかに減点）
   const highCount = vals.filter(v => v >= 4).length;
   const highRatio = highCount / total;
-  if (highRatio >= 0.45) {
-    const deduct = Math.min(25, Math.round((highRatio - 0.45) * 55));
+  if (highRatio >= 0.65) {
+    const deduct = Math.min(12, Math.round((highRatio - 0.65) * 35));
     score -= deduct;
-    penalties.push(`肯定的回答（4・5）への過度な偏り（全体の${Math.round(highRatio * 100)}% / 甘口自己評価: -${deduct}点）`);
+    penalties.push(`肯定的評価への緩やかな偏り（全体の${Math.round(highRatio * 100)}%: -${deduct}点）`);
   }
 
-  // 3. 回答の平板化（標準偏差が0.90未満で減点）
+  // 3. 回答の平板化（標準偏差が極めて小さい 0.60 未満の場合のみ減点）
   const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
   const variance = vals.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / vals.length;
   const sd = Math.sqrt(variance);
 
-  if (sd < 0.90) {
-    const deduct = Math.min(18, Math.round((0.90 - sd) * 30));
+  if (sd < 0.60) {
+    const deduct = Math.min(12, Math.round((0.60 - sd) * 25));
     score -= deduct;
-    penalties.push(`自己内省のメリハリ不足（平坦な回答傾向: -${deduct}点）`);
+    penalties.push(`回答全体の起伏が極めて穏やかな傾向（-${deduct}点）`);
   }
 
-  // 4. 同一スタイル内・類似設問の方向性不一致（大きなブレの検知）
+  // 4. 同一スタイル内・類似設問の完全分裂（5と1の両極端のみ減点）
   STYLE_METAS.forEach(meta => {
     const styleQs = questions.filter(q => {
       const cat = (q as any).category || q.style;
@@ -113,57 +109,49 @@ export function calculateReliability(answers: Record<number, number>, questions:
     if (sScores.length >= 4) {
       const maxVal = Math.max(...sScores);
       const minVal = Math.min(...sScores);
-      const range = maxVal - minVal;
-      if (range >= 4) {
-        score -= 8;
-        penalties.push(`【${meta.name}】類似設問間で回答が正反対に分裂（最大差: ${range}点 / -8点）`);
-      } else if (range === 3) {
-        score -= 4;
-        penalties.push(`【${meta.name}】類似設問間で回答に大きなバラつき（最大差: ${range}点 / -4点）`);
+      if (maxVal === 5 && minVal === 1) {
+        score -= 5;
+        penalties.push(`【${meta.name}】類似設問間で対照的な回答のばらつき（-5点）`);
       }
     }
   });
 
-  // 5. 背反する反対設問ペアの矛盾（トレードオフの同時肯定を検出）
+  // 5. 背反設問の同時満点（両方とも「5：非常に該当する」を選んだ場合のみ減点）
   const tradeOffPairs = [
     {
-      q1: 4,  // Q04: プロセスには口出しせず方向性のみ管理（ビジョン）
+      q1: 4,  // Q04: プロセスに口出しせず方向性のみ管理（ビジョン）
       q2: 36, // Q36: 自己流アレンジを認めず手順通りの完遂を徹底（指示命令）
-      label: '「裁量委任（Q04）」と「手順強制（Q36）」の同時肯定'
+      label: '「裁量委任」と「手順強制」の同時最大肯定'
     },
     {
-      q1: 9,  // Q09: 納期が迫っても指示せず本人が気づくまで待つ（育成）
+      q1: 9,  // Q09: 納期が迫っても本人が気づくまで待つ（育成）
       q2: 28, // Q28: 進捗が遅れたら自分が直接作業を引き受け挽回（率先）
-      label: '「見守り育成（Q09）」と「直接代行（Q28）」の同時肯定'
+      label: '「見守り育成」と「現場代行」の同時最大肯定'
     },
     {
       q1: 21, // Q21: 納得合意が得られるまでトップダウンで打ち切らない（民主）
       q2: 33, // Q33: 膠着時は責任で即決しチームをその通り動かす（指示命令）
-      label: '「合意徹底（Q21）」と「即断独断（Q33）」の同時肯定'
-    },
-    {
-      q1: 16, // Q16: 融和のため成果未達やルール違反も大目に見る（関係）
-      q2: 30, // Q30: プロセスより期日内の成果物クオリティのみで評価（率先）
-      label: '「規律の容認（Q16）」と「結果至上主義（Q30）」の同時肯定'
+      label: '「合意徹底」と「即断独断」の同時最大肯定'
     }
   ];
 
   tradeOffPairs.forEach(pair => {
     const val1 = answers[pair.q1] || 3;
     const val2 = answers[pair.q2] || 3;
-    if (val1 >= 4 && val2 >= 4) {
-      score -= 8;
-      penalties.push(`背反する行動の矛盾: ${pair.label}（-8点）`);
+    if (val1 === 5 && val2 === 5) {
+      score -= 5;
+      penalties.push(`背反行動の同時最大評価: ${pair.label}（-5点）`);
     }
   });
 
-  const finalScore = Math.max(25, Math.min(95, Math.round(score)));
+  // 最終判定ライン（80点以上が高、60〜79点が中、60点未満が低）
+  const finalScore = Math.max(40, Math.min(99, Math.round(score)));
   let level: '高' | '中' | '低' = '高';
-  if (finalScore < 70) level = '低';
-  else if (finalScore < 85) level = '中';
+  if (finalScore < 60) level = '低';
+  else if (finalScore < 80) level = '中';
 
   const maxCount = Math.max(...[1, 2, 3, 4, 5].map(v => vals.filter(x => x === v).length));
-  const isInvalid = maxCount / total >= 0.75;
+  const isInvalid = maxCount / total >= 0.80;
 
   return { score: finalScore, level, isInvalid, penalties };
 }
