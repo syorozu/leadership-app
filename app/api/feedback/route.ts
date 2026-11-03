@@ -41,46 +41,74 @@ ${reliabilityText}
    - ◆ 未開発スタイルの克服課題
    - ◆ 明日から実践すべき3つの行動変容`;
 
-    // 試行するモデルの優先リスト（503や404が出ても次へフォールバック）
-    const candidateModels = [
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-2.0-flash-lite',
-      'gemini-1.5-pro'
-    ];
+    // 1. Google APIから、このAPIキーで実際に「generateContent」が使える最新モデル一覧を動的取得
+    let targetModels: string[] = [];
+    try {
+      const listRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`
+      );
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        const available = (listData.models || [])
+          .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+          .map((m: any) => m.name); // 例: "models/gemini-2.5-flash", "models/gemini-2.0-flash" など
 
+        // 高速・安定な flash 系を最優先、次にその他をソート
+        targetModels = available.sort((a: string, b: string) => {
+          const aFlash = a.includes('flash') ? 1 : 0;
+          const bFlash = b.includes('flash') ? 1 : 0;
+          return bFlash - aFlash;
+        });
+      } else {
+        const listErr = await listRes.text();
+        console.error('ListModels失敗:', listErr);
+      }
+    } catch (e) {
+      console.warn('ListModels通信エラー:', e);
+    }
+
+    // 取得できなかった場合のフォールバック候補
+    if (targetModels.length === 0) {
+      targetModels = ['models/gemini-2.0-flash', 'models/gemini-2.5-flash', 'models/gemini-1.5-flash'];
+    }
+
+    // 2. 利用可能なモデルで順番に試行（404や503が発生しても次モデルへ自動切り替え）
     let feedbackText = '';
-    let lastErrorDetails = '';
+    const attemptLogs: string[] = [];
 
-    for (const model of candidateModels) {
+    for (const modelPath of targetModels.slice(0, 4)) {
       try {
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/${modelPath}:generateContent?key=${encodeURIComponent(apiKey)}`;
         const res = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.7, maxOutputTokens: 1800 }
-          })
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 1800,
+            },
+          }),
         });
 
         if (res.ok) {
           const data = await res.json();
           feedbackText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          if (feedbackText) break; // 成功した時点でループを抜ける
+          if (feedbackText) {
+            break; // 成功
+          }
         } else {
           const errBody = await res.text();
-          lastErrorDetails = `Model: ${model} (${res.status}): ${errBody}`;
-          console.warn(`モデル ${model} がエラー (${res.status})。次のモデルへ切り替えます。`);
+          attemptLogs.push(`${modelPath} (${res.status}): ${errBody.slice(0, 120)}`);
         }
       } catch (err: any) {
-        lastErrorDetails = `Model: ${model} 例外: ${err.message}`;
+        attemptLogs.push(`${modelPath} (例外): ${err.message}`);
       }
     }
 
     if (!feedbackText) {
       return NextResponse.json(
-        { error: `Gemini API呼び出しに失敗しました。詳細: ${lastErrorDetails}` },
+        { error: `Gemini API呼び出しに失敗しました。試行結果:\n${attemptLogs.join('\n')}` },
         { status: 500 }
       );
     }
