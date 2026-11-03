@@ -48,52 +48,75 @@ export interface ReliabilityResult {
   penalties: string[];
 }
 
-// 信頼度スコアの動的計算（100点固定を排除）
+// 信頼度スコアの動的計算（100点固定を完全排除し、個人の回答傾向を数値化）
 export function calculateReliability(answers: Record<number, number>, questions: Question[]): ReliabilityResult {
-  let score = 100;
+  let score = 96; // 心理測定としての自然な起点
   const penalties: string[] = [];
   const vals = Object.values(answers);
   const total = questions.length || 36;
 
-  if (vals.length === 0) return { score: 100, level: '高', isInvalid: false, penalties: [] };
+  if (vals.length === 0) return { score: 90, level: '高', isInvalid: false, penalties: [] };
 
-  // 1. 同一回答の集中度チェック
-  const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-  vals.forEach(v => { counts[v] = (counts[v] || 0) + 1; });
-  const maxCount = Math.max(...Object.values(counts));
-  const maxRatio = maxCount / total;
-  let isInvalid = false;
+  // 1. 同一回答の連続（思考停止・ルーティン選択の検知）
+  let currentVal = vals[0];
+  let currentRun = 1;
+  let maxRun = 1;
+  let runPenalties = 0;
 
-  if (maxRatio >= 0.80) {
-    score -= 45;
-    isInvalid = true;
-    penalties.push(`回答の${Math.round(maxRatio * 100)}%が同一選択肢です（無効回答判定）`);
-  } else if (maxRatio >= 0.55) {
-    score -= 20;
-    penalties.push(`特定の選択肢への過度な集中（-20点）`);
-  } else if (maxRatio >= 0.45) {
-    score -= 10;
-    penalties.push(`選択肢の偏り傾向（-10点）`);
+  for (let i = 1; i < vals.length; i++) {
+    if (vals[i] === currentVal) {
+      currentRun++;
+      if (currentRun >= 4) {
+        runPenalties += 3;
+      }
+    } else {
+      maxRun = Math.max(maxRun, currentRun);
+      currentVal = vals[i];
+      currentRun = 1;
+    }
+  }
+  maxRun = Math.max(maxRun, currentRun);
+
+  if (runPenalties > 0) {
+    score -= Math.min(15, runPenalties);
+    penalties.push(`同じ選択肢の連続選択（思考停止傾向: -${Math.min(15, runPenalties)}点）`);
   }
 
-  // 2. 回答のバラつき（標準偏差）チェック：平板回答の検知
+  // 2. 社会的望ましさ（ポジティブ回答 4・5 の比率に応じたグラデーション減点）
+  const highRatio = vals.filter(v => v >= 4).length / total;
+  if (highRatio > 0.50) {
+    const deduct = Math.round((highRatio - 0.50) * 35);
+    score -= deduct;
+    penalties.push(`肯定的回答への傾斜（甘口自己評価バイアス: -${deduct}点）`);
+  }
+
+  // 3. 回答のバラつき（標準偏差による平板化の検知）
   const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
   const variance = vals.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / vals.length;
   const sd = Math.sqrt(variance);
 
-  if (sd < 0.60) {
-    score -= 15;
-    penalties.push(`自己内省のメリハリ不足（平坦な回答傾向 / -15点）`);
+  if (sd < 0.80) {
+    const deduct = Math.round((0.80 - sd) * 20);
+    score -= deduct;
+    penalties.push(`回答のメリハリ不足（平坦な自己認知: -${deduct}点）`);
   }
 
-  // 3. 全肯定バイアス（4と5の割合が過半数を大きく超える）
-  const highRatio = vals.filter(v => v >= 4).length / total;
-  if (highRatio >= 0.70) {
-    score -= 15;
-    penalties.push(`肯定的回答への強い偏り（自己評価の甘口傾向 / -15点）`);
+  // 4. 同一選択肢の全体集中度
+  const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  vals.forEach(v => { counts[v] = (counts[v] || 0) + 1; });
+  const maxRatio = Math.max(...Object.values(counts)) / total;
+  let isInvalid = false;
+
+  if (maxRatio >= 0.80) {
+    score -= 40;
+    isInvalid = true;
+    penalties.push(`回答の${Math.round(maxRatio * 100)}%が同一選択肢（無効回答判定）`);
+  } else if (maxRatio >= 0.45) {
+    score -= 10;
+    penalties.push(`特定選択肢への集中（-${10}点）`);
   }
 
-  // 4. トレードオフの同時肯定（矛盾検出）
+  // 5. 相反スタイルの同時過大評価（トレードオフ矛盾）
   const getAvg = (styleName: string) => {
     const qs = questions.filter(q => (q.style === styleName) || (styleName === 'commanding' && (q as any).category === 'directive'));
     const scores = qs.map(q => answers[q.id] || 3);
@@ -102,19 +125,12 @@ export function calculateReliability(answers: Record<number, number>, questions:
 
   const commandingAvg = getAvg('commanding');
   const democraticAvg = getAvg('democratic');
-  const pacesettingAvg = getAvg('pacesetting');
-  const coachingAvg = getAvg('coaching');
-
-  if (commandingAvg >= 4.0 && democraticAvg >= 4.0) {
-    score -= 15;
-    penalties.push(`「指示命令」と「民主型」という相反行動の同時過大評価（-15点）`);
-  }
-  if (pacesettingAvg >= 4.0 && coachingAvg >= 4.0) {
-    score -= 10;
-    penalties.push(`「率先型」と「育成型」という時間的トレードオフの軽視（-10点）`);
+  if (commandingAvg >= 3.8 && democraticAvg >= 3.8) {
+    score -= 8;
+    penalties.push(`「指示命令」と「民主型」の同時高評価（意思決定の矛盾: -8点）`);
   }
 
-  const finalScore = Math.max(20, Math.min(100, score));
+  const finalScore = Math.max(30, Math.min(98, Math.round(score)));
   let level: '高' | '中' | '低' = '高';
   if (finalScore < 65) level = '低';
   else if (finalScore < 85) level = '中';

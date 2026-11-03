@@ -14,6 +14,7 @@ export default function DiagnosisPage() {
   const [reliability, setReliability] = useState<ReliabilityResult | null>(null);
   const [feedback, setFeedback] = useState<string>('');
   const [loadingFeedback, setLoadingFeedback] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   useEffect(() => {
     const list = [...QUESTIONS];
@@ -70,16 +71,45 @@ export default function DiagnosisPage() {
     }
   };
 
-  // PDF保存／印刷ダイアログの確実な起動
-  const handlePrint = () => {
-    window.print();
+  // CDN動的ロードによる確実なPDF直接ダウンロード
+  const handleDownloadPdf = async () => {
+    const element = document.getElementById('pdf-area');
+    if (!element) return;
+
+    setIsExportingPdf(true);
+    try {
+      if (!(window as any).html2pdf) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      }
+
+      const opt = {
+        margin: [8, 8, 8, 8],
+        filename: 'リーダーシップスタイル診断結果.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      await (window as any).html2pdf().set(opt).from(element).save();
+    } catch (error) {
+      console.error('PDF生成エラー:', error);
+      window.print();
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   const mainStyles = scores.filter(s => s.level === 'main').map(s => s.name);
   const backupStyles = scores.filter(s => s.level === 'backup').map(s => s.name);
 
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-slate-50 text-slate-900 p-4 font-sans print:max-w-none print:w-full print:bg-white print:p-0">
+    <div className="max-w-md mx-auto min-h-screen bg-slate-50 text-slate-900 p-4 font-sans">
       {!isCompleted ? (
         <div className="flex flex-col min-h-[90vh] justify-between">
           <div>
@@ -133,94 +163,94 @@ export default function DiagnosisPage() {
           </div>
         </div>
       ) : (
-        <div className="space-y-5 pb-12 pt-2 print:space-y-4 print:pb-0">
-          <div className="border-b border-slate-200 pb-3">
-            <h1 className="text-lg font-bold text-slate-900">リーダーシップ・スタイル診断結果</h1>
-            <p className="text-xs text-slate-500">コーン・フェリー基準プロファイル分析</p>
-          </div>
-
-          {reliability?.isInvalid ? (
-            <div className="bg-red-100 border border-red-300 p-4 rounded-lg text-center text-xs text-red-800 space-y-2">
-              <p className="font-bold">【無効回答として判定されました】</p>
-              <p>同一選択肢が極端に集中しているため再受検を推奨します。</p>
+        <div className="space-y-5 pb-12 pt-2">
+          {/* PDF出力対象エリア */}
+          <div id="pdf-area" className="space-y-4 bg-white p-4 rounded-xl border border-slate-200">
+            <div className="border-b border-slate-200 pb-3">
+              <h1 className="text-lg font-bold text-slate-900">リーダーシップ・スタイル診断結果</h1>
+              <p className="text-xs text-slate-500">コーン・フェリー基準プロファイル分析</p>
             </div>
-          ) : (
-            <>
-              {/* スタイルサマリー */}
-              <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm space-y-2">
-                <div className="flex items-center text-sm">
-                  <span className="w-28 font-bold text-slate-600">メインスタイル:</span>
-                  <span className="font-bold text-blue-600">
-                    {mainStyles.length > 0 ? mainStyles.join('・') : 'なし'}
-                  </span>
+
+            {reliability?.isInvalid ? (
+              <div className="bg-red-100 border border-red-300 p-4 rounded-lg text-center text-xs text-red-800 space-y-2">
+                <p className="font-bold">【無効回答として判定されました】</p>
+                <p>同一選択肢が極端に集中しているため再受検を推奨します。</p>
+              </div>
+            ) : (
+              <>
+                {/* スタイルサマリー */}
+                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">
+                  <div className="flex items-center text-sm">
+                    <span className="w-28 font-bold text-slate-600">メインスタイル:</span>
+                    <span className="font-bold text-blue-600">
+                      {mainStyles.length > 0 ? mainStyles.join('・') : 'なし'}
+                    </span>
+                  </div>
+                  <div className="flex items-center text-sm">
+                    <span className="w-28 font-bold text-slate-600">バックアップ:</span>
+                    <span className="font-bold text-indigo-600">
+                      {backupStyles.length > 0 ? backupStyles.join('・') : 'なし'}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center text-sm">
-                  <span className="w-28 font-bold text-slate-600">バックアップ:</span>
-                  <span className="font-bold text-indigo-600">
-                    {backupStyles.length > 0 ? backupStyles.join('・') : 'なし'}
-                  </span>
+
+                {/* プロファイル棒グラフ */}
+                <div>
+                  <LeadershipChart scores={scores} />
                 </div>
-              </div>
 
-              {/* プロファイル棒グラフ */}
-              <div>
-                <LeadershipChart scores={scores} />
-              </div>
-
-              {/* 組織開発コンサルタント講評 */}
-              <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm space-y-3">
-                <h2 className="text-sm font-bold text-slate-800 border-l-4 border-blue-600 pl-2">
-                  組織開発コンサルタント講評
-                </h2>
-                {loadingFeedback ? (
-                  <div className="py-8 text-center text-slate-500 text-xs animate-pulse">
-                    回答傾向を精査し、講評を生成中...
-                  </div>
-                ) : (
-                  <div className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
-                    {feedback}
-                  </div>
-                )}
-              </div>
-
-              {/* 回答信頼度（最下部に配置） */}
-              {reliability && (
-                <div className={`p-3 rounded-lg border text-xs ${
-                  reliability.level === '高' ? 'bg-slate-50 border-slate-200 text-slate-600' :
-                  reliability.level === '中' ? 'bg-amber-50 border-amber-200 text-amber-800' :
-                  'bg-red-50 border-red-200 text-red-800'
-                }`}>
-                  <div className="flex justify-between items-center font-bold">
-                    <span>回答信頼度（信憑性）</span>
-                    <span>判定: {reliability.level} ({reliability.score}点)</span>
-                  </div>
-                  {reliability.penalties.length > 0 && (
-                    <div className="mt-2 text-[10px] space-y-0.5 border-t border-slate-200 pt-1 text-slate-500">
-                      {reliability.penalties.map((pen, idx) => (
-                        <div key={idx}>• {pen}</div>
-                      ))}
+                {/* 組織開発コンサルタント講評 */}
+                <div className="bg-slate-50 p-5 rounded-lg border border-slate-200 space-y-3">
+                  <h2 className="text-sm font-bold text-slate-800 border-l-4 border-blue-600 pl-2">
+                    組織開発コンサルタント講評
+                  </h2>
+                  {loadingFeedback ? (
+                    <div className="py-8 text-center text-slate-500 text-xs animate-pulse">
+                      回答傾向を精査し、講評を生成中...
+                    </div>
+                  ) : (
+                    <div className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
+                      {feedback}
                     </div>
                   )}
                 </div>
-              )}
-            </>
-          )}
 
-          {/* 操作ボタン群（印刷・PDF時は非表示） */}
-          <div className="flex flex-col gap-2 pt-2 print:hidden">
+                {/* 回答信頼度（最下部に配置） */}
+                {reliability && (
+                  <div className={`p-3 rounded-lg border text-xs ${
+                    reliability.level === '高' ? 'bg-slate-50 border-slate-200 text-slate-600' :
+                    reliability.level === '中' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                    'bg-red-50 border-red-200 text-red-800'
+                  }`}>
+                    <div className="flex justify-between items-center font-bold">
+                      <span>回答信頼度（信憑性）</span>
+                      <span>判定: {reliability.level} ({reliability.score}点)</span>
+                    </div>
+                    {reliability.penalties.length > 0 && (
+                      <div className="mt-2 text-[10px] space-y-0.5 border-t border-slate-200 pt-1 text-slate-500">
+                        {reliability.penalties.map((pen, idx) => (
+                          <div key={idx}>• {pen}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* 操作ボタン群 */}
+          <div className="flex flex-col gap-2 pt-2">
             <button
-              onClick={handlePrint}
-              disabled={loadingFeedback}
+              onClick={handleDownloadPdf}
+              disabled={loadingFeedback || isExportingPdf}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs font-bold shadow-md transition-colors flex items-center justify-center gap-2 disabled:bg-blue-300"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              診断結果をPDFとして保存 / 印刷
+              {isExportingPdf ? 'PDFファイルを生成中...' : '診断結果をPDFとしてダウンロード'}
             </button>
-            <p className="text-[10px] text-center text-slate-400">
-              ※スマホでは印刷画面が開いた後、「PDFとして保存」または「共有」を選択してください。
-            </p>
             <button
               onClick={() => window.location.reload()}
               className="w-full py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
