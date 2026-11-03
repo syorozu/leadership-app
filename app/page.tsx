@@ -133,7 +133,6 @@ export default function DiagnosisPage() {
           <div className="space-y-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <div className="border-b border-slate-200 pb-3">
               <h1 className="text-lg font-bold text-slate-900">リーダーシップ・スタイル診断結果</h1>
-              <p className="text-xs text-slate-500">コーン・フェリー基準プロファイル分析</p>
             </div>
 
             {reliability?.isInvalid ? (
