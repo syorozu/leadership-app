@@ -28,7 +28,6 @@ const STYLE_DEFINITIONS = [
 ];
 
 export default function DiagnosisPage() {
-  // --- 状態管理 ---
   const [selectedRole, setSelectedRole] = useState<RoleOption | null>(null);
   const [shuffledQuestions, setShuffledQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -36,18 +35,15 @@ export default function DiagnosisPage() {
   const [isCompleted, setIsCompleted] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   
-  // 結果データ
   const [scores, setScores] = useState<DiagnosisScore[]>([]);
   const [reliability, setReliability] = useState<ReliabilityResult | null>(null);
   const [feedback, setFeedback] = useState<string>('');
   
-  // UX状態
   const [loadingFeedback, setLoadingFeedback] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [highlightedAnswer, setHighlightedAnswer] = useState<number | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
 
-  // --- 初期化処理 ---
   useEffect(() => {
     const list = [...QUESTIONS];
     for (let i = list.length - 1; i > 0; i--) {
@@ -75,7 +71,6 @@ export default function DiagnosisPage() {
     }
   }, []);
 
-  // --- 回答処理 ---
   const handleSelect = (value: number) => {
     if (highlightedAnswer !== null) return;
     setHighlightedAnswer(value);
@@ -105,7 +100,6 @@ export default function DiagnosisPage() {
     }
   };
 
-  // --- AI講評取得 ---
   const fetchAbortController = useRef<AbortController | null>(null);
 
   const requestFeedback = useCallback(async (
@@ -166,7 +160,6 @@ export default function DiagnosisPage() {
     }
   }, []);
 
-  // --- データ共有・メール処理 ---
   const generateShareUrl = () => {
     const data = { scores, reliability, role: selectedRole, feedback };
     const encoded = btoa(encodeURIComponent(JSON.stringify(data)));
@@ -200,9 +193,6 @@ export default function DiagnosisPage() {
   const mainStyles = scores.filter(s => s.level === 'main').map(s => s.name);
   const backupStyles = scores.filter(s => s.level === 'backup').map(s => s.name);
 
-  // ==========================================
-  // レンダー: スタート画面
-  // ==========================================
   if (!hasStarted) {
     return (
       <div className="max-w-xl mx-auto min-h-screen bg-slate-50 text-slate-900 p-6 font-sans flex flex-col justify-center">
@@ -210,7 +200,7 @@ export default function DiagnosisPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900 mb-2">リーダーシップ・スタイル診断</h1>
             <p className="text-sm text-slate-600 leading-relaxed">
-              コーン・フェリーの6つのスタイルに基づき、あなたのリーダーシップ特性をプロファイル分析します。
+              6つのスタイルに基づき、あなたのリーダーシップ特性をプロファイル分析します。
             </p>
           </div>
 
@@ -257,9 +247,6 @@ export default function DiagnosisPage() {
     );
   }
 
-  // ==========================================
-  // レンダー: 診断画面 (36問)
-  // ==========================================
   if (!isCompleted) {
     return (
       <div className="max-w-2xl mx-auto min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-6 font-sans">
@@ -338,9 +325,6 @@ export default function DiagnosisPage() {
     );
   }
 
-  // ==========================================
-  // レンダー: 結果画面
-  // ==========================================
   return (
     <div className="max-w-5xl mx-auto min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-6 font-sans print:bg-white print:p-0">
       
@@ -441,7 +425,6 @@ export default function DiagnosisPage() {
               </div>
             )}
 
-            {/* 減点理由を削除し、判定結果のみのシンプルな表示に修正 */}
             {reliability && !reliability.isInvalid && (
               <div className="mt-8 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs print:break-inside-avoid">
                 <div className="flex justify-between items-center font-bold text-slate-600">
@@ -454,7 +437,6 @@ export default function DiagnosisPage() {
         </div>
       </div>
 
-      {/* メール・印刷・共有ボタンを画面最下部の押しやすい位置に統合して配置 */}
       <div className="mt-12 max-w-md mx-auto space-y-3 print:hidden">
         <button 
           onClick={handleShare}
