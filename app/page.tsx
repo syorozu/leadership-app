@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { QUESTIONS, Question } from '../lib/questions';
-import { calculateScores, calculateReliability, DiagnosisScore, ReliabilityResult } from '../lib/scoring';
+import { calculateScores, calculateReliability, DiagnosisScore, ReliabilityResult, STYLE_METAS } from '../lib/scoring';
 import LeadershipChart from '../components/LeadershipChart';
 
 export interface RoleOption {
@@ -28,6 +28,7 @@ const STYLE_DEFINITIONS = [
 ];
 
 export default function DiagnosisPage() {
+  // --- 状態管理 ---
   const [selectedRole, setSelectedRole] = useState<RoleOption | null>(null);
   const [shuffledQuestions, setShuffledQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -35,71 +36,18 @@ export default function DiagnosisPage() {
   const [isCompleted, setIsCompleted] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   
+  // 結果データ
   const [scores, setScores] = useState<DiagnosisScore[]>([]);
   const [reliability, setReliability] = useState<ReliabilityResult | null>(null);
   const [feedback, setFeedback] = useState<string>('');
   
+  // UX状態
   const [loadingFeedback, setLoadingFeedback] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [highlightedAnswer, setHighlightedAnswer] = useState<number | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
 
-  useEffect(() => {
-    const list = [...QUESTIONS];
-    for (let i = list.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [list[i], list[j]] = [list[j], list[i]];
-    }
-    setShuffledQuestions(list);
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const sharedData = urlParams.get('data');
-    if (sharedData) {
-      try {
-        const decoded = JSON.parse(decodeURIComponent(atob(sharedData)));
-        setScores(decoded.scores);
-        setReliability(decoded.reliability);
-        setSelectedRole(decoded.role);
-        if (decoded.feedback) setFeedback(decoded.feedback);
-        setIsCompleted(true);
-        setHasStarted(true);
-        window.history.replaceState({}, '', window.location.pathname);
-        return;
-      } catch (e) {
-        console.error('共有データの復元に失敗しました', e);
-      }
-    }
-  }, []);
-
-  const handleSelect = (value: number) => {
-    if (highlightedAnswer !== null) return;
-    setHighlightedAnswer(value);
-    
-    const updated = { ...answers, [shuffledQuestions[currentIndex].id]: value };
-    setAnswers(updated);
-
-    setTimeout(() => {
-      setHighlightedAnswer(null);
-      if (currentIndex < shuffledQuestions.length - 1) {
-        setCurrentIndex(currentIndex + 1);
-      } else {
-        finishDiagnosis(updated);
-      }
-    }, 300);
-  };
-
-  const finishDiagnosis = (finalAnswers: Record<number, number>) => {
-    const calculatedScores = calculateScores(finalAnswers, QUESTIONS);
-    const calculatedReliability = calculateReliability(finalAnswers, QUESTIONS);
-    setScores(calculatedScores);
-    setReliability(calculatedReliability);
-    setIsCompleted(true);
-
-    if (!calculatedReliability.isInvalid) {
-      requestFeedback(calculatedScores, calculatedReliability, selectedRole);
-    }
-  };
-
+  // --- AI講評取得処理 ---
   const fetchAbortController = useRef<AbortController | null>(null);
 
   const requestFeedback = useCallback(async (
@@ -160,10 +108,127 @@ export default function DiagnosisPage() {
     }
   }, []);
 
+  // --- 初期化・共有データの復元 ---
+  useEffect(() => {
+    const list = [...QUESTIONS];
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    setShuffledQuestions(list);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const minData = urlParams.get('m');
+    const legacyData = urlParams.get('data');
+
+    // 圧縮URLデータの展開
+    if (minData) {
+      try {
+        const decoded = JSON.parse(atob(minData));
+        const role = ROLE_OPTIONS.find(r => r.id === decoded.ro) || null;
+        setSelectedRole(role);
+
+        const reconstructedScores: DiagnosisScore[] = decoded.s.map((minS: any) => {
+          const meta = STYLE_METAS.find(m => m.key === minS.k) || { key: minS.k, name: '' };
+          let level: 'main' | 'backup' | 'underdeveloped' = 'underdeveloped';
+          if (minS.p >= 70) level = 'main';
+          else if (minS.p >= 50) level = 'backup';
+
+          return {
+            key: minS.k,
+            name: meta.name,
+            score5: minS.sc,
+            percentile: minS.p,
+            level: level,
+            posAvg: minS.sc,
+            revAvg: minS.sc,
+            divergence: 0
+          };
+        });
+        setScores(reconstructedScores);
+
+        let rLevel: '高' | '中' | '低' = '高';
+        if (decoded.r.s < 55) rLevel = '低';
+        else if (decoded.r.s < 75) rLevel = '中';
+        const r: ReliabilityResult = {
+          score: decoded.r.s,
+          level: rLevel,
+          isInvalid: decoded.r.i === 1,
+          penalties: []
+        };
+        setReliability(r);
+
+        setIsCompleted(true);
+        setHasStarted(true);
+        window.history.replaceState({}, '', window.location.pathname);
+
+        // 共有リンクから開いた相手には、その場でAI講評を自動再生成して表示する
+        if (!r.isInvalid) {
+          requestFeedback(reconstructedScores, r, role);
+        }
+        return;
+      } catch (e) {
+        console.error('圧縮共有データの復元に失敗', e);
+      }
+    } 
+    // 古い非圧縮URLのサポート（念のため残す）
+    else if (legacyData) {
+      try {
+        const decoded = JSON.parse(decodeURIComponent(atob(legacyData)));
+        setScores(decoded.scores);
+        setReliability(decoded.reliability);
+        setSelectedRole(decoded.role);
+        if (decoded.feedback) setFeedback(decoded.feedback);
+        setIsCompleted(true);
+        setHasStarted(true);
+        window.history.replaceState({}, '', window.location.pathname);
+        return;
+      } catch (e) {
+        console.error('共有データの復元に失敗しました', e);
+      }
+    }
+  }, [requestFeedback]);
+
+  // --- 回答処理 ---
+  const handleSelect = (value: number) => {
+    if (highlightedAnswer !== null) return;
+    setHighlightedAnswer(value);
+    
+    const updated = { ...answers, [shuffledQuestions[currentIndex].id]: value };
+    setAnswers(updated);
+
+    setTimeout(() => {
+      setHighlightedAnswer(null);
+      if (currentIndex < shuffledQuestions.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        finishDiagnosis(updated);
+      }
+    }, 300);
+  };
+
+  const finishDiagnosis = (finalAnswers: Record<number, number>) => {
+    const calculatedScores = calculateScores(finalAnswers, QUESTIONS);
+    const calculatedReliability = calculateReliability(finalAnswers, QUESTIONS);
+    setScores(calculatedScores);
+    setReliability(calculatedReliability);
+    setIsCompleted(true);
+
+    if (!calculatedReliability.isInvalid) {
+      requestFeedback(calculatedScores, calculatedReliability, selectedRole);
+    }
+  };
+
+  // --- データ共有・メール処理（URL超短縮化） ---
   const generateShareUrl = () => {
-    const data = { scores, reliability, role: selectedRole, feedback };
-    const encoded = btoa(encodeURIComponent(JSON.stringify(data)));
-    return `${window.location.origin}${window.location.pathname}?data=${encoded}`;
+    // 日本語テキストを一切含めず、数値とIDだけを超圧縮してBase64化する
+    const minimalData = {
+      s: scores.map(s => ({ k: s.key, sc: s.score5, p: s.percentile })),
+      r: reliability ? { s: reliability.score, i: reliability.isInvalid ? 1 : 0 } : null,
+      ro: selectedRole?.id || null
+    };
+    const encoded = btoa(JSON.stringify(minimalData));
+    return `${window.location.origin}${window.location.pathname}?m=${encoded}`;
   };
 
   const handleShare = async () => {
@@ -193,6 +258,9 @@ export default function DiagnosisPage() {
   const mainStyles = scores.filter(s => s.level === 'main').map(s => s.name);
   const backupStyles = scores.filter(s => s.level === 'backup').map(s => s.name);
 
+  // ==========================================
+  // レンダー: スタート画面
+  // ==========================================
   if (!hasStarted) {
     return (
       <div className="max-w-xl mx-auto min-h-screen bg-slate-50 text-slate-900 p-6 font-sans flex flex-col justify-center">
@@ -247,6 +315,9 @@ export default function DiagnosisPage() {
     );
   }
 
+  // ==========================================
+  // レンダー: 診断画面 (36問)
+  // ==========================================
   if (!isCompleted) {
     return (
       <div className="max-w-2xl mx-auto min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-6 font-sans">
@@ -325,6 +396,9 @@ export default function DiagnosisPage() {
     );
   }
 
+  // ==========================================
+  // レンダー: 結果画面
+  // ==========================================
   return (
     <div className="max-w-5xl mx-auto min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-6 font-sans print:bg-white print:p-0">
       
