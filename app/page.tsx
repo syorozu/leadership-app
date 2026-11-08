@@ -47,9 +47,8 @@ export default function DiagnosisPage() {
   const [highlightedAnswer, setHighlightedAnswer] = useState<number | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
 
-  // --- 初期化処理 (シャッフル & 復元) ---
+  // --- 初期化処理 ---
   useEffect(() => {
-    // 質問シャッフル
     const list = [...QUESTIONS];
     for (let i = list.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -57,7 +56,6 @@ export default function DiagnosisPage() {
     }
     setShuffledQuestions(list);
 
-    // URLパラメータから共有データを復元
     const urlParams = new URLSearchParams(window.location.search);
     const sharedData = urlParams.get('data');
     if (sharedData) {
@@ -69,7 +67,6 @@ export default function DiagnosisPage() {
         if (decoded.feedback) setFeedback(decoded.feedback);
         setIsCompleted(true);
         setHasStarted(true);
-        // URLをクリーンアップ
         window.history.replaceState({}, '', window.location.pathname);
         return;
       } catch (e) {
@@ -78,9 +75,9 @@ export default function DiagnosisPage() {
     }
   }, []);
 
-  // --- 回答と遷移処理 ---
+  // --- 回答処理 ---
   const handleSelect = (value: number) => {
-    if (highlightedAnswer !== null) return; // 連続タップ防止
+    if (highlightedAnswer !== null) return;
     setHighlightedAnswer(value);
     
     const updated = { ...answers, [shuffledQuestions[currentIndex].id]: value };
@@ -93,7 +90,7 @@ export default function DiagnosisPage() {
       } else {
         finishDiagnosis(updated);
       }
-    }, 300); // 300msのハイライト遅延
+    }, 300);
   };
 
   const finishDiagnosis = (finalAnswers: Record<number, number>) => {
@@ -108,7 +105,7 @@ export default function DiagnosisPage() {
     }
   };
 
-  // --- AI講評取得 (タイムアウト・再試行対応) ---
+  // --- AI講評取得 ---
   const fetchAbortController = useRef<AbortController | null>(null);
 
   const requestFeedback = useCallback(async (
@@ -124,7 +121,7 @@ export default function DiagnosisPage() {
       fetchAbortController.current.abort();
     }
     fetchAbortController.current = new AbortController();
-    const timeoutId = setTimeout(() => fetchAbortController.current?.abort(), 90000); // 90秒タイムアウト
+    const timeoutId = setTimeout(() => fetchAbortController.current?.abort(), 90000);
 
     try {
       const res = await fetch('/api/feedback', {
@@ -169,7 +166,7 @@ export default function DiagnosisPage() {
     }
   }, []);
 
-  // --- データ共有処理 ---
+  // --- データ共有・メール処理 ---
   const generateShareUrl = () => {
     const data = { scores, reliability, role: selectedRole, feedback };
     const encoded = btoa(encodeURIComponent(JSON.stringify(data)));
@@ -194,13 +191,11 @@ export default function DiagnosisPage() {
     const subject = 'リーダーシップ・スタイル診断結果';
     const body = `私のリーダーシップ・スタイル診断結果です。\n\n【メインスタイル】\n${mainStylesText}\n\n【バックアップ】\n${backupStylesText}\n\n▼以下のリンクから詳しい結果とAI講評を確認できます\n${url}`;
     
-    // mailtoスキームを起動
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   if (shuffledQuestions.length === 0) return null;
 
-  // --- 表示用変数 ---
   const currentQ = shuffledQuestions[currentIndex];
   const mainStyles = scores.filter(s => s.level === 'main').map(s => s.name);
   const backupStyles = scores.filter(s => s.level === 'backup').map(s => s.name);
@@ -270,7 +265,6 @@ export default function DiagnosisPage() {
       <div className="max-w-2xl mx-auto min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-6 font-sans">
         <div className="flex flex-col min-h-[90vh] justify-between">
           <div className="space-y-6">
-            {/* ヘッダー・戻るボタン */}
             <div className="flex justify-between items-center">
               <button
                 onClick={() => setCurrentIndex(currentIndex - 1)}
@@ -284,7 +278,6 @@ export default function DiagnosisPage() {
               </span>
             </div>
 
-            {/* 進捗表示 */}
             <div>
               <div className="flex justify-between items-end mb-2">
                 <span className="text-sm font-bold text-slate-700">
@@ -302,7 +295,6 @@ export default function DiagnosisPage() {
               </div>
             </div>
 
-            {/* 質問文 */}
             <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm min-h-[160px] flex items-center justify-center">
               <p className="text-lg sm:text-xl font-bold leading-relaxed text-slate-800 text-center">
                 {currentQ.text}
@@ -310,7 +302,6 @@ export default function DiagnosisPage() {
             </div>
           </div>
 
-          {/* 選択肢 */}
           <div className="flex flex-col gap-2.5 my-8">
             {[
               { val: 5, label: '非常に該当する' },
@@ -348,39 +339,16 @@ export default function DiagnosisPage() {
   }
 
   // ==========================================
-  // レンダー: 結果画面 (レスポンシブ 2カラム対応)
+  // レンダー: 結果画面
   // ==========================================
   return (
     <div className="max-w-5xl mx-auto min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-6 font-sans print:bg-white print:p-0">
       
-      {/* 印刷時非表示のヘッダー */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3 print:hidden">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 print:hidden">
         <h1 className="text-xl font-bold text-slate-900">診断結果</h1>
-        <div className="flex flex-wrap gap-2">
-          <button 
-            onClick={handleShare}
-            className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded text-xs font-bold shadow-sm hover:bg-slate-50 transition-colors"
-          >
-            {shareCopied ? 'URLをコピーしました！' : 'URLコピー'}
-          </button>
-          <button 
-            onClick={handleEmailShare}
-            className="px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded text-xs font-bold shadow-sm hover:bg-blue-100 transition-colors"
-          >
-            メールで送る
-          </button>
-          <button 
-            onClick={() => window.print()}
-            className="px-3 py-1.5 bg-slate-800 text-white rounded text-xs font-bold shadow-sm hover:bg-slate-700 transition-colors"
-          >
-            PDF保存・印刷
-          </button>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:block">
-        
-        {/* 左カラム：データとチャート */}
         <div className="space-y-6">
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm print:border-none print:shadow-none print:p-0">
             <div className="mb-4">
@@ -419,7 +387,6 @@ export default function DiagnosisPage() {
             )}
           </div>
 
-          {/* スタイル定義の解説 (結果画面の説明) */}
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm print:break-inside-avoid">
             <h3 className="text-sm font-bold text-slate-800 mb-3 border-l-4 border-blue-600 pl-2">6つのリーダーシップスタイル定義</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -433,7 +400,6 @@ export default function DiagnosisPage() {
           </div>
         </div>
 
-        {/* 右カラム：講評 */}
         <div className="space-y-6 h-full">
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-full print:border-none print:shadow-none print:p-0">
             <h2 className="text-base font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">
@@ -475,37 +441,53 @@ export default function DiagnosisPage() {
               </div>
             )}
 
+            {/* 減点理由を削除し、判定結果のみのシンプルな表示に修正 */}
             {reliability && !reliability.isInvalid && (
               <div className="mt-8 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs print:break-inside-avoid">
                 <div className="flex justify-between items-center font-bold text-slate-600">
                   <span>回答信頼度（信憑性）</span>
                   <span>判定: {reliability.level} ({reliability.score}点)</span>
                 </div>
-                {reliability.penalties.length > 0 && (
-                  <div className="mt-2 text-[10px] space-y-1 border-t border-slate-200 pt-2 text-slate-500">
-                    {reliability.penalties.map((pen, idx) => (
-                      <div key={idx}>• {pen}</div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
           </div>
         </div>
-
       </div>
 
-      <div className="mt-8 text-center print:hidden">
+      {/* メール・印刷・共有ボタンを画面最下部の押しやすい位置に統合して配置 */}
+      <div className="mt-12 max-w-md mx-auto space-y-3 print:hidden">
+        <button 
+          onClick={handleShare}
+          className="w-full py-3.5 bg-white border border-slate-300 text-slate-700 rounded-xl text-sm font-bold shadow-sm hover:bg-slate-50 transition-colors"
+        >
+          {shareCopied ? 'URLをコピーしました！' : '結果のURLをコピー'}
+        </button>
+        <button 
+          onClick={handleEmailShare}
+          className="w-full py-3.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-100 transition-colors flex justify-center items-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+          結果をメールで送る
+        </button>
+        <button 
+          onClick={() => window.print()}
+          className="w-full py-3.5 bg-slate-800 text-white rounded-xl text-sm font-bold shadow-sm hover:bg-slate-700 transition-colors flex justify-center items-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+          PDFとして保存 / 印刷する
+        </button>
+
         <button
           onClick={() => {
             window.history.replaceState({}, '', window.location.pathname);
             window.location.reload();
           }}
-          className="text-sm text-slate-500 underline hover:text-slate-700"
+          className="w-full py-4 text-slate-500 underline text-sm mt-4 hover:text-slate-700"
         >
           最初から診断をやり直す
         </button>
       </div>
+
     </div>
   );
 }
